@@ -108,7 +108,7 @@
       "target": "dmg"
     },
     "win": {
-      "target": "portable",
+      "target": "dir",
       "sign": false,
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "${productName}-${version}-win.${ext}"
