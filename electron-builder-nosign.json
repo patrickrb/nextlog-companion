@@ -1,0 +1,24 @@
+{
+  "appId": "com.nextlog.companion",
+  "productName": "Nextlog Companion",
+  "asar": true,
+  "directories": {
+    "output": "release/1.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "extraMetadata": {
+    "main": "dist/main/main.js"
+  },
+  "win": {
+    "target": "dir"
+  },
+  "mac": {
+    "target": "dir"
+  },
+  "linux": {
+    "target": "dir"
+  }
+}

@@ -27,6 +27,7 @@
     "package:win:unsigned": "node build-windows-unsigned.js",
     "package:win:simple": "npx electron-builder --win --publish=never",
     "package:win:nosign": "node build-win-nosign.js",
+    "package:win:config": "npx electron-builder --config electron-builder-nosign.json --win --publish=never",
     "prepackage:linux": "npm run build",
     "package:linux": "electron-builder --linux"
   },
