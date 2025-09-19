@@ -24,6 +24,7 @@
     "debug-package": "node debug-package.js",
     "clean": "node clean-windows.js",
     "clean:win": "node clean-windows.js && npm run package:win",
+    "package:win:unsigned": "electron-builder --win --x64 --config.win.sign=false",
     "prepackage:linux": "npm run build",
     "package:linux": "electron-builder --linux"
   },
