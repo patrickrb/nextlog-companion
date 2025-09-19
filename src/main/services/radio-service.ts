@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { RadioDriver, RadioConfig, RadioData } from '../../types/radio'
+import { RadioDriver, RadioConfig, RadioData } from '../types/radio'
 import { FlexRadio6400Driver } from '../drivers/flexradio-6400'
 
 export class RadioService extends EventEmitter {

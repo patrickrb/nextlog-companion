@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import { createSocket, RemoteInfo } from 'dgram'
-import { WSJTXStatus, WSJTXDecode, WSJTXQSOLogged } from '../../types/wsjtx'
+import { WSJTXStatus, WSJTXDecode, WSJTXQSOLogged } from '../types/wsjtx'
 
 export class WSJTXService extends EventEmitter {
   private udpSocket: ReturnType<typeof createSocket> | null = null

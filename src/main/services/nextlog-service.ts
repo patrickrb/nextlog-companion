@@ -1,4 +1,4 @@
-import { NextlogContact, NextlogConfig, NextlogResponse } from '../../types/nextlog'
+import { NextlogContact, NextlogConfig, NextlogResponse } from '../types/nextlog'
 
 export class NextlogService {
   private config: NextlogConfig = {

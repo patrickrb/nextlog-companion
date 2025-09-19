@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import { Socket } from 'net'
 import { createSocket } from 'dgram'
-import { RadioDriver, RadioConfig, RadioData, FlexRadioStatus } from '../../types/radio'
+import { RadioDriver, RadioConfig, RadioData, FlexRadioStatus } from '../types/radio'
 
 export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
   name = 'FlexRadio 6400'
