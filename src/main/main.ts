@@ -1,6 +1,15 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
 import { isDev } from './utils/dev'
+
+// Get the correct app path for both dev and production
+const getAppPath = () => {
+  if (isDev()) {
+    return process.cwd()
+  }
+  return path.dirname(app.getAppPath())
+}
+
 import { RadioService } from './services/radio-service'
 import { NextlogService } from './services/nextlog-service'
 import { WSJTXService } from './services/wsjtx-service'
@@ -26,6 +35,7 @@ function createWindow(): void {
     mainWindow.loadURL('http://localhost:3003')
     mainWindow.webContents.openDevTools()
   } else {
+    // In production, the renderer files are in the app.asar
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
