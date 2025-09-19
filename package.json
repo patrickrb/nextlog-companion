@@ -26,6 +26,7 @@
     "clean:win": "node clean-windows.js && npm run package:win",
     "package:win:unsigned": "node build-windows-unsigned.js",
     "package:win:simple": "npx electron-builder --win --publish=never",
+    "package:win:nosign": "node build-win-nosign.js",
     "prepackage:linux": "npm run build",
     "package:linux": "electron-builder --linux"
   },
@@ -101,8 +102,6 @@
     "extraMetadata": {
       "main": "dist/main/main.js"
     },
-    "forceCodeSigning": false,
-    "electronUpdaterCompatibility": ">=2.16",
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
@@ -112,12 +111,8 @@
     },
     "win": {
       "target": "dir",
-      "sign": false,
-      "certificateFile": null,
-      "certificatePassword": null,
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "${productName}-${version}-win.${ext}",
-      "forceCodeSigning": false
+      "artifactName": "${productName}-${version}-win.${ext}"
     },
     "linux": {
       "target": "AppImage"
