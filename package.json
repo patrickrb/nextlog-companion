@@ -22,6 +22,8 @@
     "prepackage:win": "npm run build",
     "package:win": "electron-builder --win",
     "debug-package": "node debug-package.js",
+    "clean": "node clean-windows.js",
+    "clean:win": "node clean-windows.js && npm run package:win",
     "prepackage:linux": "npm run build",
     "package:linux": "electron-builder --linux"
   },
@@ -87,7 +89,8 @@
     "productName": "Nextlog Companion",
     "asar": true,
     "directories": {
-      "output": "release/${version}"
+      "output": "release/${version}",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -105,7 +108,9 @@
     },
     "win": {
       "target": "portable",
-      "sign": false
+      "sign": false,
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "${productName}-${version}-win.${ext}"
     },
     "linux": {
       "target": "AppImage"
