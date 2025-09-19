@@ -10,14 +10,18 @@
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
     "dev:renderer": "vite",
     "dev:main": "tsc -p tsconfig.main.json && electron dist/main/main.js --inspect=5858",
-    "build": "npm run build:renderer && npm run build:main",
+    "build": "npm run build:renderer && npm run build:main && node verify-build.js",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "typecheck": "tsc --noEmit",
+    "prepackage": "npm run build",
     "package": "electron-builder",
+    "prepackage:mac": "npm run build",
     "package:mac": "electron-builder --mac",
+    "prepackage:win": "npm run build",
     "package:win": "electron-builder --win",
+    "prepackage:linux": "npm run build",
     "package:linux": "electron-builder --linux"
   },
   "dependencies": {
@@ -81,11 +85,21 @@
     "appId": "com.nextlog.companion",
     "productName": "Nextlog Companion",
     "directories": {
+      "buildResources": "build",
       "output": "release/${version}"
     },
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "!src/**/*",
+      "!*.ts",
+      "!*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "dist"
+      }
     ],
     "nsis": {
       "oneClick": false,
