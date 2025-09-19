@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   root: 'src/renderer',
+  base: './', // Use relative paths for production builds
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,

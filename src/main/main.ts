@@ -31,12 +31,11 @@ function createWindow(): void {
     },
   })
 
+  // Always load from built files for self-contained app
+  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+
   if (isDev()) {
-    mainWindow.loadURL('http://localhost:3003')
     mainWindow.webContents.openDevTools()
-  } else {
-    // In production, the renderer files are in the app.asar
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
   mainWindow.on('closed', () => {

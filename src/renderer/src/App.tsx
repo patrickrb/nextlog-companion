@@ -5,6 +5,7 @@ import { NextlogPanel } from './components/NextlogPanel'
 import { WSJTXPanel } from './components/WSJTXPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { StatusPanel } from './components/StatusPanel'
+import { DebugInfo } from './components/DebugInfo'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 
@@ -24,6 +25,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background p-6">
+      <DebugInfo />
       <div className="max-w-6xl mx-auto space-y-6">
         <header className="text-center">
           <h1 className="text-3xl font-bold tracking-tight">Nextlog Companion</h1>
