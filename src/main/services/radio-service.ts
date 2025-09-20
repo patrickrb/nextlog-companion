@@ -1,13 +1,23 @@
 import { EventEmitter } from 'events'
 import { RadioDriver, RadioConfig, RadioData } from '../types/radio'
 import { FlexRadio6400Driver } from '../drivers/flexradio-6400'
+import { SettingsService } from './settings-service'
 
 export class RadioService extends EventEmitter {
   private driver: RadioDriver | null = null
   private currentConfig: RadioConfig | null = null
+  private settingsService?: SettingsService
+
+  constructor(settingsService?: SettingsService) {
+    super()
+    this.settingsService = settingsService
+  }
 
   initialize() {
     // Initialize any global radio service settings
+    if (this.settingsService) {
+      console.log('[Radio] Radio service initialized with settings integration')
+    }
   }
 
   async connect(config: RadioConfig): Promise<boolean> {
@@ -35,6 +45,8 @@ export class RadioService extends EventEmitter {
 
       if (connected) {
         this.currentConfig = config
+        this.saveConnectionSettings(config)
+        console.log('[Radio] Connection successful, settings saved')
       }
 
       return connected
@@ -71,6 +83,31 @@ export class RadioService extends EventEmitter {
 
   getCurrentConfig(): RadioConfig | null {
     return this.currentConfig
+  }
+
+  getLastConnectionSettings(): RadioConfig | null {
+    if (!this.settingsService) return null
+
+    const radioSettings = this.settingsService.getRadioSettings()
+
+    return {
+      type: radioSettings.lastConnectedType as any,
+      connection: {
+        host: radioSettings.lastConnectedHost,
+        port: parseInt(radioSettings.lastConnectedPort)
+      },
+      model: 'FlexRadio 6400' // Default model, could be saved too
+    }
+  }
+
+  private saveConnectionSettings(config: RadioConfig): void {
+    if (!this.settingsService) return
+
+    this.settingsService.updateRadioSettings({
+      lastConnectedType: config.type,
+      lastConnectedHost: config.connection.host || '192.168.1.100',
+      lastConnectedPort: (config.connection.port || 4992).toString()
+    })
   }
 
   private createDriver(config: RadioConfig): RadioDriver | null {

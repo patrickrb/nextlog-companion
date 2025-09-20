@@ -1,10 +1,12 @@
 import { EventEmitter } from 'events'
 import { createSocket, RemoteInfo } from 'dgram'
 import { WSJTXStatus, WSJTXDecode, WSJTXQSOLogged } from '../types/wsjtx'
+import { SettingsService } from './settings-service'
 
 export class WSJTXService extends EventEmitter {
   private udpSocket: ReturnType<typeof createSocket> | null = null
   private port = 2237 // Default WSJT-X UDP port
+  private settingsService?: SettingsService
   private status: WSJTXStatus = {
     isRunning: false,
     mode: '',
@@ -14,6 +16,32 @@ export class WSJTXService extends EventEmitter {
     txEnabled: false,
     transmitting: false,
     decoding: false
+  }
+
+  constructor(settingsService?: SettingsService) {
+    super()
+    this.settingsService = settingsService
+
+    if (settingsService) {
+      // Load settings from persistent storage
+      const savedSettings = settingsService.getWSJTXSettings()
+      this.port = savedSettings.udpPort
+      console.log('[WSJT-X] Loaded settings from storage:', savedSettings)
+
+      // Listen for settings changes
+      settingsService.on('wsjtx-settings-changed', (newSettings) => {
+        const oldPort = this.port
+        this.port = newSettings.udpPort
+        console.log('[WSJT-X] Settings updated from storage:', newSettings)
+
+        // If the port changed and we have an active socket, restart it
+        if (oldPort !== this.port && this.udpSocket) {
+          console.log(`[WSJT-X] Port changed from ${oldPort} to ${this.port}, restarting UDP listener`)
+          this.destroy()
+          this.setupUdpListener()
+        }
+      })
+    }
   }
 
   initialize(): void {
@@ -44,32 +72,44 @@ export class WSJTXService extends EventEmitter {
 
   private parseWSJTXMessage(message: Buffer, remote: RemoteInfo): void {
     try {
+      // Log all incoming UDP messages for debugging
+      console.log(`[WSJT-X] Received UDP message from ${remote.address}:${remote.port}, length: ${message.length} bytes`)
+      console.log(`[WSJT-X] Raw message (hex):`, message.toString('hex'))
+
       // WSJT-X uses a binary protocol
       // This is a simplified parser - full implementation would handle all message types
 
-      if (message.length < 4) return
+      if (message.length < 4) {
+        console.log('[WSJT-X] Message too short, ignoring')
+        return
+      }
 
       const messageType = message.readUInt32BE(0)
+      console.log(`[WSJT-X] Message type: ${messageType}`)
 
       switch (messageType) {
         case 1: // Status
+          console.log('[WSJT-X] Processing Status message')
           this.parseStatusMessage(message)
           break
         case 2: // Decode
+          console.log('[WSJT-X] Processing Decode message')
           this.parseDecodeMessage(message)
           break
         case 5: // QSO Logged
+          console.log('[WSJT-X] Processing QSO Logged message')
           this.parseQSOLoggedMessage(message)
           break
         case 12: // ADIF Logged
+          console.log('[WSJT-X] Processing ADIF Logged message')
           this.parseADIFLoggedMessage(message)
           break
         default:
-          console.log(`Unknown WSJT-X message type: ${messageType}`)
+          console.log(`[WSJT-X] Unknown message type: ${messageType}`)
       }
 
     } catch (error) {
-      console.error('Error parsing WSJT-X message:', error)
+      console.error('[WSJT-X] Error parsing message:', error)
     }
   }
 
@@ -93,7 +133,7 @@ export class WSJTXService extends EventEmitter {
       }
 
       this.emit('status-update', this.status)
-      console.log('WSJT-X status updated:', this.status)
+      console.log('[WSJT-X] Status updated:', this.status)
 
     } catch (error) {
       console.error('Error parsing WSJT-X status:', error)
@@ -116,7 +156,7 @@ export class WSJTXService extends EventEmitter {
       }
 
       this.emit('decode', decode)
-      console.log('WSJT-X decode:', decode)
+      console.log('[WSJT-X] Decode received:', decode)
 
     } catch (error) {
       console.error('Error parsing WSJT-X decode:', error)
@@ -148,7 +188,7 @@ export class WSJTXService extends EventEmitter {
       }
 
       this.emit('contact-logged', qso)
-      console.log('WSJT-X QSO logged:', qso)
+      console.log('[WSJT-X] QSO logged - emitting event:', qso)
 
     } catch (error) {
       console.error('Error parsing WSJT-X QSO logged:', error)
@@ -159,7 +199,7 @@ export class WSJTXService extends EventEmitter {
     // Parse WSJT-X ADIF logged message
     try {
       // This would parse the ADIF format contact data
-      console.log('WSJT-X ADIF logged message received')
+      console.log('[WSJT-X] ADIF logged message received')
     } catch (error) {
       console.error('Error parsing WSJT-X ADIF logged:', error)
     }
@@ -186,5 +226,33 @@ export class WSJTXService extends EventEmitter {
       this.udpSocket.close()
       this.udpSocket = null
     }
+  }
+
+  // Test function to simulate a contact being logged
+  simulateContactLogged(): void {
+    console.log('[WSJT-X] Simulating a contact logged event for testing...')
+
+    const testContact: WSJTXQSOLogged = {
+      dateTimeOff: new Date(),
+      dxCall: 'W1ABC',
+      dxGrid: 'FN42',
+      txFrequency: 14074000,
+      mode: 'FT8',
+      reportSent: '-08',
+      reportReceived: '-12',
+      txPower: '100',
+      comments: 'Test QSO via simulator',
+      name: 'John',
+      dateTimeOn: new Date(Date.now() - 120000), // 2 minutes ago
+      operatorCall: 'N0CALL',
+      myCall: 'N0CALL',
+      myGrid: 'EM00',
+      exchangeSent: '',
+      exchangeReceived: '',
+      adifPropagationMode: ''
+    }
+
+    this.emit('contact-logged', testContact)
+    console.log('[WSJT-X] Test contact logged - emitting event:', testContact)
   }
 }

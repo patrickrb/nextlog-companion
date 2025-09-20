@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import { Socket } from 'net'
 import { createSocket } from 'dgram'
-import { RadioDriver, RadioConfig, RadioData, FlexRadioStatus } from '../types/radio'
+import { RadioDriver, RadioConfig, RadioData, FlexRadioStatus, FlexRadioSlice } from '../types/radio'
 
 export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
   name = 'FlexRadio 6400'
@@ -13,6 +13,7 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
   private config: RadioConfig | null = null
   private radioStatus: FlexRadioStatus | null = null
   private dataTimer: NodeJS.Timeout | null = null
+  private initializationComplete = false
 
   async connect(config: RadioConfig): Promise<boolean> {
     try {
@@ -33,8 +34,21 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
           console.log(`Connected to FlexRadio at ${host}:${port}`)
           this.setupTcpHandlers()
           this.connected = true
-          this.startDataPolling()
-          resolve(true)
+
+          // Initialize radio status structure
+          this.initializeRadioStatus()
+
+          // Start initialization sequence - don't start polling yet
+          this.initializeRadio()
+
+          // Wait for initialization to complete before resolving
+          this.waitForInitialization().then(() => {
+            this.startDataPolling()
+            resolve(true)
+          }).catch((error) => {
+            console.error('FlexRadio initialization failed:', error)
+            reject(error)
+          })
         })
 
         this.tcpClient.on('error', (error) => {
@@ -58,6 +72,7 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
 
   async disconnect(): Promise<void> {
     this.connected = false
+    this.initializationComplete = false
 
     if (this.dataTimer) {
       clearInterval(this.dataTimer)
@@ -74,11 +89,12 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
       this.vitaSocket = null
     }
 
+    this.radioStatus = null
     console.log('Disconnected from FlexRadio')
   }
 
   async getCurrentData(): Promise<RadioData> {
-    if (!this.connected || !this.radioStatus) {
+    if (!this.connected || !this.radioStatus || !this.initializationComplete) {
       throw new Error('Not connected to radio')
     }
 
@@ -101,7 +117,58 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
   }
 
   isConnected(): boolean {
-    return this.connected
+    return this.connected && this.initializationComplete
+  }
+
+  private initializeRadioStatus(): void {
+    // Initialize with basic structure
+    this.radioStatus = {
+      radio: {
+        model: '',
+        version: '',
+        serial: '',
+        callsign: ''
+      },
+      slices: [],
+      transmit: {
+        power: 0,
+        tune: false,
+        frequency: 0
+      },
+      interlock: {
+        state: 'READY',
+        reason: ''
+      }
+    }
+    console.log('[FlexRadio] Radio status structure initialized')
+  }
+
+  private initializeRadio(): void {
+    // Send initial commands to get radio status
+    console.log('[FlexRadio] Starting initialization sequence')
+    this.sendCommand('version')
+    this.sendCommand('info')
+    this.sendCommand('slice list')
+    this.sendCommand('transmit info')
+  }
+
+  private async waitForInitialization(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Radio initialization timeout'))
+      }, 5000) // 5 second timeout
+
+      const checkInitialization = () => {
+        if (this.initializationComplete) {
+          clearTimeout(timeout)
+          resolve()
+        } else {
+          setTimeout(checkInitialization, 100)
+        }
+      }
+
+      checkInitialization()
+    })
   }
 
   private setupTcpHandlers(): void {
@@ -122,31 +189,52 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
       this.emit('error', error)
     })
 
-    // Send initial commands to get radio status
-    this.sendCommand('version')
-    this.sendCommand('info')
-    this.sendCommand('slice list')
+    // Initial commands are now sent in initializeRadio() method
   }
 
   private sendCommand(command: string): void {
     if (this.tcpClient && this.connected) {
-      this.tcpClient.write(command + '\\n')
+      console.log(`[FlexRadio] Sending command: ${command}`)
+      this.tcpClient.write(command + '\n')
     }
   }
 
   private parseFlexRadioResponse(response: string): void {
-    const lines = response.split('\\n').filter(line => line.trim())
+    const lines = response.split('\n').filter(line => line.trim())
 
     for (const line of lines) {
+      console.log(`[FlexRadio] Received: ${line}`)
       this.parseStatusLine(line.trim())
     }
   }
 
   private parseStatusLine(line: string): void {
-    // Parse FlexRadio CAT responses
-    // This is a simplified parser - full implementation would handle all status messages
+    if (!this.radioStatus) return
 
-    if (line.startsWith('S')) {
+    // Parse FlexRadio responses
+    if (line.startsWith('R')) {
+      // Response to command
+      const parts = line.split('|')
+      if (parts.length >= 2) {
+        const commandId = parts[0]
+        const response = parts[1]
+
+        // Handle version response
+        if (response.includes('version')) {
+          this.radioStatus.radio.version = response
+          console.log(`[FlexRadio] Version: ${response}`)
+        }
+        // Handle info response
+        else if (response.includes('model')) {
+          this.radioStatus.radio.model = response
+          console.log(`[FlexRadio] Model: ${response}`)
+        }
+      }
+
+      // Check if we have basic info to complete initialization
+      this.checkInitializationComplete()
+
+    } else if (line.startsWith('S')) {
       // Status message
       const parts = line.split('|')
       if (parts.length >= 2) {
@@ -159,21 +247,63 @@ export class FlexRadio6400Driver extends EventEmitter implements RadioDriver {
           this.parseTransmitStatus(data)
         }
       }
-    } else if (line.startsWith('R')) {
-      // Response to command
-      console.log('FlexRadio response:', line)
     }
+
+    // For now, create a default slice if none exist after receiving any data
+    if (this.radioStatus.slices.length === 0 && line.trim()) {
+      this.createDefaultSlice()
+    }
+  }
+
+  private checkInitializationComplete(): void {
+    if (!this.initializationComplete && this.radioStatus) {
+      // Consider initialization complete when we have basic radio info
+      // and at least one slice configured
+      if (this.radioStatus.slices.length > 0) {
+        this.initializationComplete = true
+        console.log('[FlexRadio] Initialization complete')
+      }
+    }
+  }
+
+  private createDefaultSlice(): void {
+    if (!this.radioStatus) return
+
+    // Create a default slice for basic operation
+    const defaultSlice: FlexRadioSlice = {
+      id: 0,
+      active: true,
+      frequency: 14200000, // 20m band
+      mode: 'USB',
+      rxant: 'ANT1',
+      txant: 'ANT1',
+      wide: 0,
+      locked: false
+    }
+
+    this.radioStatus.slices = [defaultSlice]
+    console.log('[FlexRadio] Created default slice')
+    this.checkInitializationComplete()
   }
 
   private parseSliceStatus(data: string): void {
     // Parse slice status and update radioStatus
     // Implementation would parse frequency, mode, etc.
-    console.log('Slice status:', data)
+    console.log('[FlexRadio] Slice status:', data)
+    // For now, just ensure we have a default slice
+    if (this.radioStatus && this.radioStatus.slices.length === 0) {
+      this.createDefaultSlice()
+    }
   }
 
   private parseTransmitStatus(data: string): void {
     // Parse transmit status
-    console.log('Transmit status:', data)
+    console.log('[FlexRadio] Transmit status:', data)
+    if (this.radioStatus) {
+      // Basic transmit status parsing would go here
+      // For now, just update basic transmit info
+      this.radioStatus.transmit.power = 100 // Default power
+    }
   }
 
   private startDataPolling(): void {
