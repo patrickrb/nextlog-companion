@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -16,6 +16,25 @@ export function ConnectionPanel({ onConnectionChange, isConnected }: ConnectionP
   const [host, setHost] = useState('192.168.1.100')
   const [port, setPort] = useState('4992')
   const [connecting, setConnecting] = useState(false)
+
+  // Load last connection settings on component mount
+  useEffect(() => {
+    const loadLastConnection = async () => {
+      try {
+        const lastConnection = await (window as any).electronAPI.radio.getLastConnection()
+        if (lastConnection) {
+          console.log('[ConnectionPanel] Loading last connection settings:', lastConnection)
+          setRadioType(lastConnection.type || 'flexradio')
+          setHost(lastConnection.connection?.host || '192.168.1.100')
+          setPort((lastConnection.connection?.port || 4992).toString())
+        }
+      } catch (error) {
+        console.error('[ConnectionPanel] Failed to load last connection:', error)
+      }
+    }
+
+    loadLastConnection()
+  }, [])
 
   const handleConnect = async () => {
     if (isConnected) {

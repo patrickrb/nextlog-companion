@@ -32,21 +32,110 @@ export function SettingsPanel() {
     status: 'listening' as 'listening' | 'disabled' | 'error'
   })
 
+  // Load settings from persistent storage on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const [nextlog, radio, wsjtx] = await Promise.all([
+          (window as any).electronAPI.settings.getNextlog(),
+          (window as any).electronAPI.settings.getRadio(),
+          (window as any).electronAPI.settings.getWSJTX()
+        ])
+
+        setNextlogSettings(prev => ({
+          ...prev,
+          apiUrl: nextlog.apiUrl,
+          apiKey: nextlog.apiKey,
+          autoSubmit: nextlog.autoSubmit
+        }))
+
+        setRadioSettings(prev => ({
+          ...prev,
+          lastConnectedType: radio.lastConnectedType,
+          lastConnectedHost: radio.lastConnectedHost,
+          lastConnectedPort: radio.lastConnectedPort,
+          autoReconnect: radio.autoReconnect,
+          pollInterval: radio.pollInterval
+        }))
+
+        setWSJTXSettings(prev => ({
+          ...prev,
+          udpPort: wsjtx.udpPort,
+          autoLog: wsjtx.autoLog,
+          enabled: wsjtx.enabled
+        }))
+
+        console.log('[SettingsPanel] Loaded settings from storage')
+      } catch (error) {
+        console.error('[SettingsPanel] Failed to load settings:', error)
+      }
+    }
+
+    loadSettings()
+  }, [])
+
+  // Save settings functions
+  const saveNextlogSettings = async (settings: Partial<typeof nextlogSettings>) => {
+    try {
+      await (window as any).electronAPI.settings.updateNextlog({
+        apiUrl: settings.apiUrl !== undefined ? settings.apiUrl : nextlogSettings.apiUrl,
+        apiKey: settings.apiKey !== undefined ? settings.apiKey : nextlogSettings.apiKey,
+        autoSubmit: settings.autoSubmit !== undefined ? settings.autoSubmit : nextlogSettings.autoSubmit
+      })
+      console.log('[SettingsPanel] Nextlog settings saved')
+    } catch (error) {
+      console.error('[SettingsPanel] Failed to save Nextlog settings:', error)
+    }
+  }
+
+  const saveRadioSettings = async (settings: Partial<typeof radioSettings>) => {
+    try {
+      await (window as any).electronAPI.settings.updateRadio({
+        lastConnectedType: settings.lastConnectedType !== undefined ? settings.lastConnectedType : radioSettings.lastConnectedType,
+        lastConnectedHost: settings.lastConnectedHost !== undefined ? settings.lastConnectedHost : radioSettings.lastConnectedHost,
+        lastConnectedPort: settings.lastConnectedPort !== undefined ? settings.lastConnectedPort : radioSettings.lastConnectedPort,
+        autoReconnect: settings.autoReconnect !== undefined ? settings.autoReconnect : radioSettings.autoReconnect,
+        pollInterval: settings.pollInterval !== undefined ? settings.pollInterval : radioSettings.pollInterval
+      })
+      console.log('[SettingsPanel] Radio settings saved')
+    } catch (error) {
+      console.error('[SettingsPanel] Failed to save Radio settings:', error)
+    }
+  }
+
+  const saveWSJTXSettings = async (settings: Partial<typeof wsjtxSettings>) => {
+    try {
+      await (window as any).electronAPI.settings.updateWSJTX({
+        udpPort: settings.udpPort !== undefined ? settings.udpPort : wsjtxSettings.udpPort,
+        autoLog: settings.autoLog !== undefined ? settings.autoLog : wsjtxSettings.autoLog,
+        enabled: settings.enabled !== undefined ? settings.enabled : wsjtxSettings.enabled
+      })
+      console.log('[SettingsPanel] WSJT-X settings saved')
+    } catch (error) {
+      console.error('[SettingsPanel] Failed to save WSJT-X settings:', error)
+    }
+  }
+
   const testNextlogConnection = async () => {
     setNextlogSettings(prev => ({ ...prev, connectionStatus: 'testing' }))
 
     try {
-      // In a real implementation, this would test the actual API
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
+      console.log('[SettingsPanel] Testing Nextlog connection...')
+      const result = await (window as any).electronAPI.nextlog.testConnection()
 
-      // Mock result - in real app this would be the actual test result
-      const success = Math.random() > 0.3 // 70% success rate for demo
+      console.log('[SettingsPanel] Connection test result:', result)
 
       setNextlogSettings(prev => ({
         ...prev,
-        connectionStatus: success ? 'connected' : 'disconnected'
+        connectionStatus: result.success ? 'connected' : 'disconnected'
       }))
+
+      if (!result.success) {
+        console.error('[SettingsPanel] Connection test failed:', result.message)
+        // Could show a toast notification here with result.message
+      }
     } catch (error) {
+      console.error('[SettingsPanel] Connection test error:', error)
       setNextlogSettings(prev => ({ ...prev, connectionStatus: 'disconnected' }))
     }
   }
@@ -173,7 +262,11 @@ export function SettingsPanel() {
               <Input
                 id="nextlog-url"
                 value={nextlogSettings.apiUrl}
-                onChange={(e) => setNextlogSettings(prev => ({ ...prev, apiUrl: e.target.value }))}
+                onChange={(e) => {
+                  const newValue = e.target.value
+                  setNextlogSettings(prev => ({ ...prev, apiUrl: newValue }))
+                  saveNextlogSettings({ apiUrl: newValue })
+                }}
                 placeholder="https://nextlog.app/api/v1"
               />
             </div>
@@ -184,7 +277,11 @@ export function SettingsPanel() {
                 id="api-key"
                 type="password"
                 value={nextlogSettings.apiKey}
-                onChange={(e) => setNextlogSettings(prev => ({ ...prev, apiKey: e.target.value }))}
+                onChange={(e) => {
+                  const newValue = e.target.value
+                  setNextlogSettings(prev => ({ ...prev, apiKey: newValue }))
+                  saveNextlogSettings({ apiKey: newValue })
+                }}
                 placeholder="Your API key"
               />
             </div>
@@ -199,7 +296,10 @@ export function SettingsPanel() {
             </div>
             <Switch
               checked={nextlogSettings.autoSubmit}
-              onCheckedChange={(checked) => setNextlogSettings(prev => ({ ...prev, autoSubmit: checked }))}
+              onCheckedChange={(checked) => {
+                setNextlogSettings(prev => ({ ...prev, autoSubmit: checked }))
+                saveNextlogSettings({ autoSubmit: checked })
+              }}
             />
           </div>
 
@@ -240,7 +340,11 @@ export function SettingsPanel() {
               <Input
                 type="number"
                 value={radioSettings.pollInterval}
-                onChange={(e) => setRadioSettings(prev => ({ ...prev, pollInterval: parseInt(e.target.value) }))}
+                onChange={(e) => {
+                  const newValue = parseInt(e.target.value)
+                  setRadioSettings(prev => ({ ...prev, pollInterval: newValue }))
+                  saveRadioSettings({ pollInterval: newValue })
+                }}
                 min="100"
                 max="5000"
                 step="100"
@@ -260,7 +364,10 @@ export function SettingsPanel() {
             </div>
             <Switch
               checked={radioSettings.autoReconnect}
-              onCheckedChange={(checked) => setRadioSettings(prev => ({ ...prev, autoReconnect: checked }))}
+              onCheckedChange={(checked) => {
+                setRadioSettings(prev => ({ ...prev, autoReconnect: checked }))
+                saveRadioSettings({ autoReconnect: checked })
+              }}
             />
           </div>
 
@@ -294,7 +401,11 @@ export function SettingsPanel() {
               <Input
                 type="number"
                 value={wsjtxSettings.udpPort}
-                onChange={(e) => setWSJTXSettings(prev => ({ ...prev, udpPort: parseInt(e.target.value) }))}
+                onChange={(e) => {
+                  const newValue = parseInt(e.target.value)
+                  setWSJTXSettings(prev => ({ ...prev, udpPort: newValue }))
+                  saveWSJTXSettings({ udpPort: newValue })
+                }}
                 min="1024"
                 max="65535"
               />
@@ -310,7 +421,10 @@ export function SettingsPanel() {
             </div>
             <Switch
               checked={wsjtxSettings.enabled}
-              onCheckedChange={(checked) => setWSJTXSettings(prev => ({ ...prev, enabled: checked }))}
+              onCheckedChange={(checked) => {
+                setWSJTXSettings(prev => ({ ...prev, enabled: checked }))
+                saveWSJTXSettings({ enabled: checked })
+              }}
             />
           </div>
 
@@ -323,7 +437,10 @@ export function SettingsPanel() {
             </div>
             <Switch
               checked={wsjtxSettings.autoLog}
-              onCheckedChange={(checked) => setWSJTXSettings(prev => ({ ...prev, autoLog: checked }))}
+              onCheckedChange={(checked) => {
+                setWSJTXSettings(prev => ({ ...prev, autoLog: checked }))
+                saveWSJTXSettings({ autoLog: checked })
+              }}
             />
           </div>
 
